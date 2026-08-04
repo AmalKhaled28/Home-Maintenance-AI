@@ -2,7 +2,7 @@
 
 AI-powered REST API for predicting the severity of home maintenance problems using Machine Learning models.
 
-The API receives a maintenance category and a problem description, then predicts the severity level with a confidence score and class probabilities.
+The API receives a maintenance category and a problem description, then predicts the severity level with a confidence score, class probabilities, and a human-review flag.
 
 ---
 
@@ -13,6 +13,9 @@ The API receives a maintenance category and a problem description, then predicts
 - Arabic text preprocessing.
 - Confidence score for every prediction.
 - Probability for each severity class.
+- Automatic human-review flag for low-confidence predictions.
+- Unique request ID for every prediction, for downstream tracking.
+- Structured CSV logging of every prediction.
 - FastAPI with automatic Swagger documentation.
 
 ---
@@ -44,7 +47,12 @@ AI/
 │   ├── main.py
 │   ├── predict.py
 │   ├── clean.py
-│   └── models.py
+│   ├── models.py
+│   └── logger.py
+│
+├── logs/
+│   ├── prediction_logs.csv
+│   └── server.log
 │
 ├── models/
 │   ├── plumbing_model.pkl
@@ -59,6 +67,8 @@ AI/
 ├── requirements.txt
 └── README.md
 ```
+
+The `logs/` folder is created automatically on first run.
 
 ---
 
@@ -158,10 +168,12 @@ Example Response
 
 ```json
 {
+  "request_id": "3f1b2c4a-7e2d-4b6a-9c1e-2a8f5d6e9b0c",
   "category": "Plumbing",
   "description": "في تسريب تحت الحوض",
   "severity": "Medium",
   "confidence": 0.9052,
+  "needs_review": false,
   "probabilities": {
     "Large": 0.0076,
     "Medium": 0.9052,
@@ -185,10 +197,12 @@ Example Response
 
 | Field | Type | Description |
 |-------|------|-------------|
-| category | string | Selected category |
+| request_id | string | Unique ID for this prediction. The backend should store this alongside the request and use it to attach the technician's actual severity later. |
+| category | string | Selected category (normalized to title case) |
 | description | string | Original user description |
 | severity | string | Predicted severity |
 | confidence | float | Highest prediction probability |
+| needs_review | boolean | `true` when confidence is below the review threshold (currently 0.70), meaning the prediction should not be trusted as-is and should be checked by a human before being used for downstream decisions such as pricing |
 | probabilities | object | Probability of each severity class |
 
 ---
@@ -225,11 +239,33 @@ Internal server error
 
 1. Receive category and description.
 2. Validate the input.
-3. Clean the Arabic text.
-4. Select the appropriate model.
-5. Predict the severity.
-6. Calculate prediction probabilities.
-7. Return the prediction result.
+3. Normalize the category (case-insensitive matching).
+4. Clean the Arabic text.
+5. Select the appropriate model.
+6. Predict the severity.
+7. Calculate prediction probabilities and confidence.
+8. Flag the prediction for human review if confidence is below threshold.
+9. Generate a unique request ID.
+10. Log the prediction to `logs/prediction_logs.csv`.
+11. Return the prediction result.
+
+---
+
+## Prediction Logging
+
+Every successful prediction is appended as a row to `logs/prediction_logs.csv`, containing:
+
+- timestamp
+- request_id
+- category
+- description
+- severity
+- confidence
+- needs_review
+
+This file is the source of truth for later evaluating the model against real technician outcomes: once the backend records the technician's actual severity for a given `request_id`, the two can be joined together to measure real-world accuracy.
+
+Unexpected errors and validation warnings are logged separately to `logs/server.log` for debugging.
 
 ---
 
@@ -249,5 +285,6 @@ Internal server error
 
 - Each maintenance category has its own trained Machine Learning model.
 - Arabic text is normalized before prediction.
-- The API does not store requests in a database.
-- Request storage and AI estimation persistence should be handled by the backend service.
+- The API logs every prediction to a local CSV file (`logs/prediction_logs.csv`) for analysis, but does not persist requests to a database.
+- Full request storage, linking predictions to real outcomes, and AI estimation persistence should be handled by the backend service, using `request_id` as the join key.
+- `needs_review` should be treated as a signal, not just metadata: predictions with `needs_review: true` should not be used as a final input to downstream decisions (e.g. pricing) without a human check.
