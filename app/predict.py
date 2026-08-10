@@ -5,27 +5,38 @@ from app.models import MODELS
 
 CONFIDENCE_THRESHOLD = 0.70
 
+# Mapping dictionary from Arabic category names to English keys used in MODELS
+CATEGORY_MAP = {
+    "سباكة": "Plumbing",
+    "كهرباء": "Electrical",
+    "نجارة": "Carpentry",
+    "دهانات": "Painting",
+}
+
 
 def predict_severity(category: str, description: str):
 
     # ==========================================
-    # Validate Input
+    # Validate & Map Category Input
     # ==========================================
 
     if not description.strip():
         raise ValueError("Description cannot be empty")
 
-    category = category.strip().title()
+    category = category.strip()
 
-    if category not in MODELS:
+    # Map Arabic category to English key, or keep it if it's already in English
+    english_category = CATEGORY_MAP.get(category, category).title()
+
+    if english_category not in MODELS:
         raise ValueError(f"Unsupported category: {category}")
 
     # ==========================================
     # Load Model & Encoder
     # ==========================================
 
-    model = MODELS[category]["model"]
-    encoder = MODELS[category]["encoder"]
+    model = MODELS[english_category]["model"]
+    encoder = MODELS[english_category]["encoder"]
 
     # ==========================================
     # Clean Text
@@ -61,10 +72,6 @@ def predict_severity(category: str, description: str):
     # ==========================================
     # Request ID
     # ==========================================
-    # Unique identifier returned to the caller so the backend can later
-    # attach the technician's actual severity to this exact prediction
-    # (e.g. UPDATE ... WHERE request_id = ...), instead of matching on
-    # the raw description text.
 
     request_id = str(uuid.uuid4())
 
@@ -74,12 +81,10 @@ def predict_severity(category: str, description: str):
 
     return {
         "request_id": request_id,
-        "category": category,
+        "category": category,  # Returns the original category received from Backend
         "description": description,
         "severity": severity,  # Returns 'LARGE', 'MEDIUM', or 'SMALL'
         "confidence": confidence,
         "needs_review": needs_review,
-        "probabilities": (
-            probability_dict  # Keys are formatted as 'LARGE', 'MEDIUM', 'SMALL'
-        ),
+        "probabilities": probability_dict,
     }
