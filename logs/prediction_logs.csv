@@ -1,0 +1,6 @@
+﻿timestamp,request_id,category,description,severity,confidence,needs_review
+2026-08-04T21:18:07.953304,476d5de8-5457-4657-82b8-c7d87b1e4b0b,Electrical,في مشكلة,Medium,0.603,True
+2026-08-08T22:24:28.426674,0d165337-ea01-4ca4-b0cd-aafd68906d30,Electrical,النور قطع,Medium,0.4631,True
+2026-08-08T22:26:30.000143,f4b36bfe-88c5-44c0-8270-b2fdf2b2d569,Plumbing,فى تسريب تحت الحوض,Medium,0.9052,False
+2026-08-09T20:44:15.384297,4c1aa204-767d-47e6-a1e9-d01c26462596,Plumbing,في تسريب تحت الحوض,Medium,0.9052,False
+2026-08-10T20:16:20.566547,2a084a67-6885-475b-8a7b-9f11d2532874,Plumbing,في تسريب تحت الحوض,MEDIUM,0.9052,False
