@@ -87,4 +87,8 @@ def predict_severity(category: str, description: str):
         "confidence": confidence,
         "needs_review": needs_review,
         "probabilities": probability_dict,
+<<<<<<< HEAD
     }
+=======
+    }
+>>>>>>> be8ae7d0ee85541c3c57c7cc50497ef5c409b537
