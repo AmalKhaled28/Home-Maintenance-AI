@@ -150,8 +150,8 @@ Pushing to `main` triggers `.github/workflows/deploy.yml`, which:
 
 | Secret | Description |
 |--------|-------------|
-| `DEPLOY_HOST` | Server hostname or IP |
-| `DEPLOY_USER` | SSH user to deploy as |
+| `SSH_HOST` | Server hostname or IP |
+| `SSH_USER` | SSH user to deploy as |
 | `DEPLOY_KEY` | Private key (full contents) for that user |
 | `DEPLOY_KNOWN_HOSTS` | Optional. Output of `ssh-keyscan -p <port> <host>`. Without it the workflow trusts the host key on first connection |
 

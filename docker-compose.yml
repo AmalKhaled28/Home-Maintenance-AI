@@ -3,7 +3,7 @@
 # `docker compose pull && docker compose up -d` there.
 services:
   api:
-    image: ${IMAGE:-ghcr.io/amalkhaled28/home-maintenance-ai:latest}
+    image: ${IMAGE:-ghcr.io/sla7ly-org/home-maintenance-ai:latest}
     container_name: home-maintenance-ai
     restart: unless-stopped
     ports:

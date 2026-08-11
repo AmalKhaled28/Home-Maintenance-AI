@@ -105,7 +105,7 @@ jobs:
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_KEY }}
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
@@ -125,8 +125,8 @@ jobs:
 
       - name: Ship compose file and image tag
         env:
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'home-maintenance-ai' }}
           IMAGE: ${{ needs.build.outputs.image }}
@@ -144,8 +144,8 @@ jobs:
 
       - name: Pull and restart
         env:
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'home-maintenance-ai' }}
           GHCR_USER: ${{ github.actor }}
