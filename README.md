@@ -115,6 +115,61 @@ http://127.0.0.1:8000/redoc
 
 ---
 
+## Run with Docker
+
+```bash
+docker build -t home-maintenance-ai .
+docker run -p 8000:8000 -v home-maintenance-logs:/app/logs home-maintenance-ai
+```
+
+The image runs as an unprivileged user and exposes port 8000. `logs/` is a
+volume so `prediction_logs.csv` survives container restarts and redeploys.
+
+---
+
+## Deployment
+
+Pushing to `main` triggers `.github/workflows/deploy.yml`, which:
+
+1. Builds the image.
+2. Smoke tests it — boots the container, checks `/health`, and runs a real
+   `/predict` call so a broken model file or a scikit-learn version mismatch
+   fails the build instead of reaching the server.
+3. Pushes it to GHCR as `ghcr.io/<owner>/<repo>:latest` and `:<commit-sha>`.
+4. SSHes into the server, copies `docker-compose.yml` plus the image tag, runs
+   `docker compose pull && docker compose up -d`, and waits for the container
+   healthcheck to report `healthy` (the deploy fails if it never does).
+
+### Server prerequisites
+
+- Docker Engine with the Compose v2 plugin.
+- The deploy user in the `docker` group.
+- A public key in the deploy user's `~/.ssh/authorized_keys`.
+
+### Required repository secrets
+
+| Secret | Description |
+|--------|-------------|
+| `SSH_HOST` | Server hostname or IP |
+| `SSH_USER` | SSH user to deploy as |
+| `DEPLOY_KEY` | Private key (full contents) for that user |
+| `DEPLOY_KNOWN_HOSTS` | Optional. Output of `ssh-keyscan -p <port> <host>`. Without it the workflow trusts the host key on first connection |
+
+### Optional repository variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEPLOY_PORT` | `22` | SSH port |
+| `DEPLOY_PATH` | `home-maintenance-ai` | Directory on the server holding the compose file |
+| `HOST_PORT` | `8000` | Host port the API binds to |
+
+By default the container binds to `127.0.0.1:8000` on the server, so it is not
+reachable from the internet directly — put a reverse proxy (nginx, Caddy) in
+front of it for TLS. To expose it directly instead, change the `ports` entry in
+`docker-compose.yml` to `"${HOST_PORT:-8000}:8000"`.
+
+---
+
 ## API Endpoints
 
 ### Home
