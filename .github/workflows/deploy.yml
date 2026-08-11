@@ -1,0 +1,184 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys race each other onto the same server.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build, test & push image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image name
+        id: meta
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          # GHCR requires a lowercase image path; the repo name is not.
+          name="${REGISTRY}/$(echo "$REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "image=$name:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: home-maintenance-ai:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke -p 8000:8000 home-maintenance-ai:ci
+
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then break; fi
+            sleep 2
+          done
+
+          echo "--- GET /health"
+          curl -fsS http://127.0.0.1:8000/health
+
+          # Real prediction: proves the .pkl models actually load and run
+          # against the pinned scikit-learn version inside the image.
+          echo "--- POST /predict"
+          curl -fsS -X POST http://127.0.0.1:8000/predict \
+            -H 'Content-Type: application/json' \
+            -d '{"category":"Plumbing","description":"في تسريب تحت الحوض"}'
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs smoke || true
+
+      - name: Stop smoke test container
+        if: always()
+        run: docker rm -f smoke || true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.name }}:latest
+            ${{ steps.meta.outputs.image }}
+          cache-from: type=gha
+
+  deploy:
+    name: Deploy to server
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            # Trust-on-first-use fallback. Set the DEPLOY_KNOWN_HOSTS secret
+            # (output of `ssh-keyscan -p <port> <host>`) to pin the host key.
+            ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Ship compose file and image tag
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'home-maintenance-ai' }}
+          IMAGE: ${{ needs.build.outputs.image }}
+          HOST_PORT: ${{ vars.HOST_PORT || '8000' }}
+        run: |
+          set -euo pipefail
+          printf 'IMAGE=%s\nHOST_PORT=%s\n' "$IMAGE" "$HOST_PORT" > .env.deploy
+
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "mkdir -p '$DEPLOY_PATH'"
+          scp -i ~/.ssh/id_deploy -P "$SSH_PORT" \
+            docker-compose.yml "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
+          scp -i ~/.ssh/id_deploy -P "$SSH_PORT" \
+            .env.deploy "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/.env"
+
+      - name: Pull and restart
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'home-maintenance-ai' }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOST_PORT: ${{ vars.HOST_PORT || '8000' }}
+        run: |
+          set -euo pipefail
+
+          # Token goes over stdin so it never lands in the server's process list.
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
+            "$SSH_USER@$SSH_HOST" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<REMOTE
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          docker compose pull
+          docker compose up -d --remove-orphans
+          docker logout ghcr.io
+          docker image prune -f
+
+          # Wait for the container's own healthcheck to go green.
+          for _ in \$(seq 1 30); do
+            status=\$(docker inspect -f '{{.State.Health.Status}}' home-maintenance-ai 2>/dev/null || echo starting)
+            [ "\$status" = "healthy" ] && break
+            sleep 3
+          done
+
+          if [ "\$status" != "healthy" ]; then
+            echo "Container is not healthy (status: \$status)" >&2
+            docker compose logs --tail 100
+            exit 1
+          fi
+
+          curl -fsS "http://127.0.0.1:$HOST_PORT/health"
+          REMOTE

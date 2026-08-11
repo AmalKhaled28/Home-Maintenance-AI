@@ -1,0 +1,23 @@
+# Runs on the server. The deploy workflow copies this file plus a generated
+# .env (IMAGE=..., HOST_PORT=...) into the deploy directory, then runs
+# `docker compose pull && docker compose up -d` there.
+services:
+  api:
+    image: ${IMAGE:-ghcr.io/amalkhaled28/home-maintenance-ai:latest}
+    container_name: home-maintenance-ai
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only and terminate TLS with a reverse proxy in front.
+      # Change to "${HOST_PORT:-8000}:8000" to expose the API directly.
+      - "127.0.0.1:${HOST_PORT:-8000}:8000"
+    volumes:
+      # Keeps prediction_logs.csv / server.log across redeploys.
+      - prediction-logs:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  prediction-logs:
