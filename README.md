@@ -1,6 +1,6 @@
 # Home Maintenance AI API
 
-AI-powered REST API built with **Flask** and hosted on **PythonAnywhere** for predicting the severity of home maintenance issues in Egypt using Machine Learning models.
+AI-powered REST API built with **Flask** and hosted on **PythonAnywhere** for predicting the severity of home maintenance issues using Machine Learning models.
 
 The API receives a maintenance category Arabic and a problem description, then predicts the severity level with a confidence score, class probabilities, and a human-review flag.
 
