@@ -1,60 +1,67 @@
 # Home Maintenance AI API
 
-AI-powered REST API for predicting the severity of home maintenance problems using Machine Learning models.
+AI-powered REST API built with **Flask** and hosted on **PythonAnywhere** for predicting the severity of home maintenance issues in Egypt using Machine Learning models.
 
-The API receives a maintenance category and a problem description, then predicts the severity level with a confidence score, class probabilities, and a human-review flag.
+The API receives a maintenance category Arabic and a problem description, then predicts the severity level with a confidence score, class probabilities, and a human-review flag.
+
+---
+
+## Live API URL
+
+```
+https://amalkhaled.pythonanywhere.com
+```
 
 ---
 
 ## Features
 
-- Predict maintenance problem severity.
-- Supports multiple maintenance categories.
-- Arabic text preprocessing.
-- Confidence score for every prediction.
-- Probability for each severity class.
-- Automatic human-review flag for low-confidence predictions.
-- Unique request ID for every prediction, for downstream tracking.
-- Structured CSV logging of every prediction.
-- FastAPI with automatic Swagger documentation.
+- **Flask API Architecture**: Lightweight and optimized for WSGI web hosting environments.
+- **Lazy Loading ML Models**: Memory-efficient model loading on runtime to prevent server memory bloat.
+- **Arabic Text Preprocessing**: Cleans and normalizes Arabic text input before vectorization.
+- **Category Normalization**: Supports Arabic category names directly from the database (`سباكة`, `دهانات`, `نقاشة`, `كهرباء`, `نجارة`).
+- **Severity Prediction**: Categorizes issues into `SMALL`, `MEDIUM`, or `LARGE`.
+- **CORS Enabled**: Configured via `flask-cors` for cross-origin integration with Web and Mobile Frontends.
+- **Confidence Scoring & Flagging**: Calculates probabilities and automatically sets `needs_review: true` for low-confidence predictions (< 0.70).
+- **Request Tracking**: Generates a unique UUID `request_id` for every transaction.
 
 ---
 
 ## Supported Categories
 
-- Plumbing
-- Electrical
-- Painting
-- Carpentry
+| Category (Arabic Input) | 
+| ------------------------ |
+| سباكة                      |
+| كهرباء                     |
+| نجارة                      |
+| دهانات                     |
 
 ---
 
 ## Severity Levels
 
-- Small
-- Medium
-- Large
+- `SMALL`
+- `MEDIUM`
+- `LARGE`
 
 ---
 
 ## Project Structure
 
 ```
-AI/
+Home-Maintenance-AI/
+│
+├── api/
+│   └── index.py            # Flask Web Application & Routes
 │
 ├── app/
 │   ├── __init__.py
-│   ├── main.py
-│   ├── predict.py
-│   ├── clean.py
-│   ├── models.py
-│   └── logger.py
+│   ├── predict.py          # Category mapping & Model Inference Logic
+│   ├── clean.py            # Arabic Text Preprocessing
+│   ├── models.py           # Lazy loading for Scikit-learn models & encoders
+│   └── logger.py           # Server logging setup
 │
-├── logs/
-│   ├── prediction_logs.csv
-│   └── server.log
-│
-├── models/
+├── models/                 # Saved Scikit-Learn Model & Encoder Files
 │   ├── plumbing_model.pkl
 │   ├── plumbing_encoder.pkl
 │   ├── electrical_model.pkl
@@ -64,137 +71,23 @@ AI/
 │   ├── carpentry_model.pkl
 │   └── carpentry_encoder.pkl
 │
-├── requirements.txt
+├── requirements.txt        # Python dependencies
 └── README.md
 ```
-
-The `logs/` folder is created automatically on first run.
-
----
-
-## Installation
-
-Clone the repository.
-
-```bash
-git clone <repository_url>
-cd AI
-```
-
-Install dependencies.
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Run the API
-
-```bash
-python -m uvicorn app.main:app --reload
-```
-
-The API will be available at
-
-```
-http://127.0.0.1:8000
-```
-
-Swagger Documentation
-
-```
-http://127.0.0.1:8000/docs
-```
-
-Alternative Documentation
-
-```
-http://127.0.0.1:8000/redoc
-```
-
----
-
-## Run with Docker
-
-```bash
-docker build -t home-maintenance-ai .
-docker run -p 8000:8000 -v home-maintenance-logs:/app/logs home-maintenance-ai
-```
-
-The image runs as an unprivileged user and exposes port 8000. `logs/` is a
-volume so `prediction_logs.csv` survives container restarts and redeploys.
-
----
-
-## Deployment
-
-Pushing to `main` triggers `.github/workflows/deploy.yml`, which:
-
-1. Builds the image.
-2. Smoke tests it — boots the container, checks `/health`, and runs a real
-   `/predict` call so a broken model file or a scikit-learn version mismatch
-   fails the build instead of reaching the server.
-3. Pushes it to GHCR as `ghcr.io/<owner>/<repo>:latest` and `:<commit-sha>`.
-4. SSHes into the server, copies `docker-compose.yml` plus the image tag, runs
-   `docker compose pull && docker compose up -d`, and waits for the container
-   healthcheck to report `healthy` (the deploy fails if it never does).
-
-### Server prerequisites
-
-- Docker Engine with the Compose v2 plugin.
-- The deploy user in the `docker` group.
-- A public key in the deploy user's `~/.ssh/authorized_keys`.
-
-### Required repository secrets
-
-| Secret | Description |
-|--------|-------------|
-| `SSH_HOST` | Server hostname or IP |
-| `SSH_USER` | SSH user to deploy as |
-| `DEPLOY_KEY` | Private key (full contents) for that user |
-| `DEPLOY_KNOWN_HOSTS` | Optional. Output of `ssh-keyscan -p <port> <host>`. Without it the workflow trusts the host key on first connection |
-
-### Optional repository variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEPLOY_PORT` | `22` | SSH port |
-| `DEPLOY_PATH` | `home-maintenance-ai` | Directory on the server holding the compose file |
-| `HOST_PORT` | `8000` | Host port the API binds to |
-
-By default the container binds to `127.0.0.1:8000` on the server, so it is not
-reachable from the internet directly — put a reverse proxy (nginx, Caddy) in
-front of it for TLS. To expose it directly instead, change the `ports` entry in
-`docker-compose.yml` to `"${HOST_PORT:-8000}:8000"`.
 
 ---
 
 ## API Endpoints
 
-### Home
+### 1. Health Check
 
-```
-GET /
-```
+Checks if the server and Flask application are running.
 
-Response
-
-```json
-{
-  "message": "Home Maintenance AI API is running"
-}
-```
-
----
-
-### Health Check
-
-```
+```http
 GET /health
 ```
 
-Response
+**Response (`200 OK`):**
 
 ```json
 {
@@ -202,144 +95,111 @@ Response
 }
 ```
 
----
+### 2. Predict Severity
 
-### Predict Severity
+Predicts the severity of a maintenance issue based on Arabic description.
 
-```
+```http
 POST /predict
 ```
 
-Request Body
+**Headers:**
+
+```http
+Content-Type: application/json
+```
+
+**Request Body Example:**
 
 ```json
 {
-  "category": "Plumbing",
-  "description": "في تسريب تحت الحوض"
+  "category": "سباكة",
+  "description": "تسريب مياه شديد تحت الحوض"
 }
 ```
 
-Example Response
+**Response Example (`200 OK`):**
 
 ```json
 {
-  "request_id": "3f1b2c4a-7e2d-4b6a-9c1e-2a8f5d6e9b0c",
-  "category": "Plumbing",
-  "description": "في تسريب تحت الحوض",
-  "severity": "Medium",
-  "confidence": 0.9052,
+  "category": "سباكة",
+  "description": "تسريب مياه شديد تحت الحوض",
+  "severity": "MEDIUM",
+  "confidence": 0.8954,
   "needs_review": false,
   "probabilities": {
-    "Large": 0.0076,
-    "Medium": 0.9052,
-    "Small": 0.0872
-  }
+    "LARGE": 0.0211,
+    "MEDIUM": 0.8954,
+    "SMALL": 0.0835
+  },
+  "request_id": "8c3584e1-2220-4112-a111-998877665544"
 }
 ```
-
----
-
-## Request Parameters
-
-| Field | Type | Description |
-|-------|------|-------------|
-| category | string | Maintenance category |
-| description | string | Problem description in Arabic |
-
----
-
-## Response Parameters
-
-| Field | Type | Description |
-|-------|------|-------------|
-| request_id | string | Unique ID for this prediction. The backend should store this alongside the request and use it to attach the technician's actual severity later. |
-| category | string | Selected category (normalized to title case) |
-| description | string | Original user description |
-| severity | string | Predicted severity |
-| confidence | float | Highest prediction probability |
-| needs_review | boolean | `true` when confidence is below the review threshold (currently 0.70), meaning the prediction should not be trusted as-is and should be checked by a human before being used for downstream decisions such as pricing |
-| probabilities | object | Probability of each severity class |
 
 ---
 
 ## Error Responses
 
-Unsupported category
+### Missing Fields (`400 Bad Request`)
 
 ```json
 {
-  "detail": "Unsupported category: Gardening"
+  "detail": "Missing category or description"
 }
 ```
 
-Empty description
+### Unsupported Category (`400 Bad Request`)
 
 ```json
 {
-  "detail": "Description cannot be empty"
+  "detail": "Unsupported category: حدادة"
 }
 ```
 
-Internal server error
+### Method Not Allowed (`405 Method Not Allowed`)
 
-```json
-{
-  "detail": "Internal Server Error"
-}
-```
+Occurs when opening `https://amalkhaled.pythonanywhere.com/predict` directly in a web browser using a `GET` request instead of a `POST` request.
 
 ---
 
-## Machine Learning Pipeline
+## Local Development & Testing
 
-1. Receive category and description.
-2. Validate the input.
-3. Normalize the category (case-insensitive matching).
-4. Clean the Arabic text.
-5. Select the appropriate model.
-6. Predict the severity.
-7. Calculate prediction probabilities and confidence.
-8. Flag the prediction for human review if confidence is below threshold.
-9. Generate a unique request ID.
-10. Log the prediction to `logs/prediction_logs.csv`.
-11. Return the prediction result.
+1. **Clone the Repository:**
 
----
+   ```bash
+   git clone https://github.com/AmalKhaled28/Home-Maintenance-AI.git
+   cd Home-Maintenance-AI
+   ```
 
-## Prediction Logging
+2. **Set up Virtual Environment:**
 
-Every successful prediction is appended as a row to `logs/prediction_logs.csv`, containing:
+   ```bash
+   python -m venv myenv
+   source myenv/bin/activate  # On Windows: myenv\Scripts\activate
+   ```
 
-- timestamp
-- request_id
-- category
-- description
-- severity
-- confidence
-- needs_review
+3. **Install Dependencies:**
 
-This file is the source of truth for later evaluating the model against real technician outcomes: once the backend records the technician's actual severity for a given `request_id`, the two can be joined together to measure real-world accuracy.
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Unexpected errors and validation warnings are logged separately to `logs/server.log` for debugging.
+4. **Run Server Locally:**
+
+   ```bash
+   python api/index.py
+   ```
+
+   The server will run on `http://127.0.0.1:5000`.
 
 ---
 
-## Technologies
+## Technologies Used
 
-- Python
-- FastAPI
-- Scikit-learn
-- Joblib
-- Pandas
-- NumPy
-- Uvicorn
-
----
-
-## Notes
-
-- Each maintenance category has its own trained Machine Learning model.
-- Arabic text is normalized before prediction.
-- The API logs every prediction to a local CSV file (`logs/prediction_logs.csv`) for analysis, but does not persist requests to a database.
-- Full request storage, linking predictions to real outcomes, and AI estimation persistence should be handled by the backend service, using `request_id` as the join key.
-- `needs_review` should be treated as a signal, not just metadata: predictions with `needs_review: true` should not be used as a final input to downstream decisions (e.g. pricing) without a human check.
+- **Python 3.10+**
+- **Flask** (RESTful API Framework)
+- **Flask-CORS** (Cross-Origin Resource Sharing)
+- **Scikit-learn** (Machine Learning Model Inference)
+- **Joblib** (Model Serialization)
+- **Pandas & NumPy** (Data Manipulation)
+- **PythonAnywhere** (WSGI Production Hosting)
