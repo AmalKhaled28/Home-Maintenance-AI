@@ -1,114 +1,43 @@
-# app/predict.py
-
 import uuid
-
 from app.clean import clean_text
-from app.models import MODELS
+from app.models import get_model_and_encoder
 
-
-CONFIDENCE_THRESHOLD = 0.70
-
+CONFIDENCE_THRESHOLD = 0.60
 
 CATEGORY_MAP = {
     "سباكة": "Plumbing",
     "كهرباء": "Electrical",
     "نجارة": "Carpentry",
-    "دهانات": "Painting",
+    "نقاشة": "Painting",
+    "دهانات": "Painting"
 }
 
 
 def predict_severity(category: str, description: str):
-
-    # ==========================================
-    # Validate Input
-    # ==========================================
-
-    if not description or not description.strip():
-        raise ValueError("Description cannot be empty")
-
-    if not category or not category.strip():
-        raise ValueError("Category cannot be empty")
-
-    category = category.strip()
-
-    # ==========================================
-    # Map Category
-    # ==========================================
-
-    english_category = CATEGORY_MAP.get(
-        category,
-        category.strip().lower().capitalize()
-    )
-
-    if english_category not in MODELS:
+    english_category = CATEGORY_MAP.get(category)
+    if not english_category:
         raise ValueError(f"Unsupported category: {category}")
 
-    # ==========================================
-    # Get Model & Encoder
-    # ==========================================
-
-    model = MODELS[english_category]["model"]
-    encoder = MODELS[english_category]["encoder"]
-
-    # ==========================================
-    # Clean Description
-    # ==========================================
+    model_data = get_model_and_encoder(english_category)
+    model = model_data["model"]
+    encoder = model_data["encoder"]
 
     clean_description = clean_text(description)
-
     if not clean_description:
         raise ValueError("Description contains no valid Arabic text")
 
-    # ==========================================
-    # Prediction
-    # ==========================================
+    prediction = model.predict([clean_description])[0]
+    severity = str(encoder.inverse_transform([prediction])[0]).upper()
 
-    prediction = model.predict(
-        [clean_description]
-    )[0]
+    probabilities = model.predict_proba([clean_description])[0]
+    probability_dict = {
+        str(label).upper(): round(float(prob), 4)
+        for label, prob in zip(encoder.classes_, probabilities)
+    }
 
-    severity = str(
-        encoder.inverse_transform([prediction])[0]
-    ).upper()
-
-    # ==========================================
-    # Probabilities
-    # ==========================================
-
-    probabilities = model.predict_proba(
-        [clean_description]
-    )[0]
-
-    probability_dict = {}
-
-    for label, probability in zip(
-        encoder.classes_,
-        probabilities
-    ):
-        probability_dict[
-            str(label).upper()
-        ] = round(float(probability), 4)
-
-    confidence = round(
-        float(max(probabilities)),
-        4
-    )
-
-    # ==========================================
-    # Human Review
-    # ==========================================
-
+    confidence = round(float(max(probabilities)), 4)
     needs_review = confidence < CONFIDENCE_THRESHOLD
-
-    # ==========================================
-    # Request ID
-    # ==========================================
-
     request_id = str(uuid.uuid4())
-
-    # ==========================================
-    # Response
-    # ==========================================
 
     return {
         "request_id": request_id,

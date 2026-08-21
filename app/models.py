@@ -1,72 +1,31 @@
-# app/models.py
 import joblib
 from pathlib import Path
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 MODELS_DIR = BASE_DIR / "models"
 
+# تخزين الموديلات بعد تحميلها لأول مرة
+_LOADED_MODELS = {}
 
-plumbing_model = joblib.load(
-    MODELS_DIR / "plumbing_model.pkl"
-)
-
-plumbing_encoder = joblib.load(
-    MODELS_DIR / "plumbing_encoder.pkl"
-)
-
-
-electrical_model = joblib.load(
-    MODELS_DIR / "electrical_model.pkl"
-)
-
-electrical_encoder = joblib.load(
-    MODELS_DIR / "electrical_encoder.pkl"
-)
-
-
-carpentry_model = joblib.load(
-    MODELS_DIR / "carpentry_model.pkl"
-)
-
-carpentry_encoder = joblib.load(
-    MODELS_DIR / "carpentry_encoder.pkl"
-)
-
-
-painting_model = joblib.load(
-    MODELS_DIR / "painting_model.pkl"
-)
-
-painting_encoder = joblib.load(
-    MODELS_DIR / "painting_encoder.pkl"
-)
-
-
-MODELS = {
-
-    "Plumbing": {
-        "model": plumbing_model,
-        "encoder": plumbing_encoder
-    },
-
-    "Electrical": {
-        "model": electrical_model,
-        "encoder": electrical_encoder
-    },
-
-    "Carpentry": {
-        "model": carpentry_model,
-        "encoder": carpentry_encoder
-    },
-
-    "Painting": {
-        "model": painting_model,
-        "encoder": painting_encoder
-    }
-
+MODEL_FILES = {
+    "Plumbing": ("plumbing_model.pkl", "plumbing_encoder.pkl"),
+    "Electrical": ("electrical_model.pkl", "electrical_encoder.pkl"),
+    "Carpentry": ("carpentry_model.pkl", "carpentry_encoder.pkl"),
+    "Painting": ("painting_model.pkl", "painting_encoder.pkl"),
 }
 
-
-print("All AI models loaded successfully.")
+def get_model_and_encoder(category: str):
+    if category not in MODEL_FILES:
+        raise ValueError(f"Unsupported category: {category}")
+    
+    # إذا كان الموديل محملاً في الذاكرة مسبقاً، ارجعه مباشرة
+    if category in _LOADED_MODELS:
+        return _LOADED_MODELS[category]
+    
+    # تحميل الموديل المطلوب فقط عند الحاجة إليه
+    model_file, encoder_file = MODEL_FILES[category]
+    model = joblib.load(MODELS_DIR / model_file)
+    encoder = joblib.load(MODELS_DIR / encoder_file)
+    
+    _LOADED_MODELS[category] = {"model": model, "encoder": encoder}
+    return _LOADED_MODELS[category]
