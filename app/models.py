@@ -1,17 +1,12 @@
+# app/models.py
 import joblib
 from pathlib import Path
 
-# ==========================================
-# Models Directory
-# ==========================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 MODELS_DIR = BASE_DIR / "models"
 
-# ==========================================
-# Load Plumbing Model
-# ==========================================
 
 plumbing_model = joblib.load(
     MODELS_DIR / "plumbing_model.pkl"
@@ -21,9 +16,6 @@ plumbing_encoder = joblib.load(
     MODELS_DIR / "plumbing_encoder.pkl"
 )
 
-# ==========================================
-# Load Electrical Model
-# ==========================================
 
 electrical_model = joblib.load(
     MODELS_DIR / "electrical_model.pkl"
@@ -33,9 +25,6 @@ electrical_encoder = joblib.load(
     MODELS_DIR / "electrical_encoder.pkl"
 )
 
-# ==========================================
-# Load Carpentry Model
-# ==========================================
 
 carpentry_model = joblib.load(
     MODELS_DIR / "carpentry_model.pkl"
@@ -45,9 +34,6 @@ carpentry_encoder = joblib.load(
     MODELS_DIR / "carpentry_encoder.pkl"
 )
 
-# ==========================================
-# Load Painting Model
-# ==========================================
 
 painting_model = joblib.load(
     MODELS_DIR / "painting_model.pkl"
@@ -57,9 +43,6 @@ painting_encoder = joblib.load(
     MODELS_DIR / "painting_encoder.pkl"
 )
 
-# ==========================================
-# Dictionary of Models
-# ==========================================
 
 MODELS = {
 
@@ -85,8 +68,5 @@ MODELS = {
 
 }
 
-# ==========================================
-# Loaded Models Message
-# ==========================================
 
 print("All AI models loaded successfully.")
